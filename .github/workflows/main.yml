@@ -20,59 +20,53 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
       - name: Install Dependencies
         run: |
+          set -e
           python -m pip install --upgrade pip
           pip install mlflow pandas scikit-learn
 
       - name: Run Training (MLflow Project)
         run: |
-          mlflow run . -e main --env-manager=local --experiment-name "CI-CD-Experiment"
+          set -e
+          mlflow run . -e main --env-manager=local
 
-      - name: Debug mlruns folder
+      - name: Debug mlruns
         run: |
-          echo "Isi folder mlruns:"
+          echo "=== DEBUG mlruns ==="
           ls -R mlruns || echo "mlruns tidak ditemukan"
 
-      - name: Get Latest Run ID (SUPER SAFE)
+      - name: Get Latest Run ID (SAFE)
         id: get_run
         run: |
+          set -e
           if [ ! -d "mlruns" ]; then
-            echo "Folder mlruns tidak ditemukan!"
+            echo "mlruns tidak ada!"
             exit 1
           fi
 
-          # Ambil run ID dari eksperimen terbaru
           RUN_ID=$(find mlruns -type d -path "*/artifacts" | head -n 1 | cut -d'/' -f3)
 
           if [ -z "$RUN_ID" ]; then
-            echo "Run ID tidak ditemukan!"
+            echo "RUN_ID tidak ditemukan!"
             exit 1
           fi
 
           echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
-          echo "Latest Run ID: $RUN_ID"
+          echo "Run ID: $RUN_ID"
 
-      - name: Verify Model Exists (FIX PATH)
+      - name: Verify Model Exists
         run: |
+          set -e
           if [ ! -d "mlruns/0/$RUN_ID/artifacts/model" ]; then
-            echo "Model tidak ditemukan di artifacts/model!"
+            echo "Model tidak ditemukan!"
             exit 1
           fi
 
       - name: Build Docker Image
         run: |
-          mlflow models build-docker \
-            -m "runs:/$RUN_ID/model" \
-            -n "cc"
+          set -e
+          mlflow models build-docker -m "runs:/$RUN_ID/model" -n "cc"
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -85,7 +79,7 @@ jobs:
           docker tag cc ${{ secrets.DOCKER_HUB_USERNAME }}/cc:latest
           docker tag cc ${{ secrets.DOCKER_HUB_USERNAME }}/cc:${{ github.sha }}
 
-      - name: Push to Docker Hub
+      - name: Push Docker Image
         run: |
           docker push ${{ secrets.DOCKER_HUB_USERNAME }}/cc:latest
           docker push ${{ secrets.DOCKER_HUB_USERNAME }}/cc:${{ github.sha }}

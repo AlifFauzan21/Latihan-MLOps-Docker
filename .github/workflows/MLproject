@@ -1,0 +1,5 @@
+name: iris-project
+
+entry_points:
+  main:
+    command: "python incremental.py"
