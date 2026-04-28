@@ -7,45 +7,85 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    env:
+      MLFLOW_TRACKING_URI: file:./mlruns
+
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.12.7"
+          python-version: "3.10"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install mlflow pandas scikit-learn
 
-      - name: Run Training
-        # Menggunakan titik (.) agar MLflow menjalankan folder saat ini sebagai proyek lokal
+      - name: Run Training (MLflow Project)
         run: |
-          mlflow run . --env-manager=local
+          mlflow run . -e main --env-manager=local --experiment-name "CI-CD-Experiment"
 
-      - name: Get Run ID
+      - name: Debug mlruns folder
         run: |
-          # Mengambil Run ID terbaru dari folder mlruns
-          RUN_ID=$(ls -td mlruns/0/*/ | head -n 1 | cut -d'/' -f3)
+          echo "Isi folder mlruns:"
+          ls -R mlruns || echo "mlruns tidak ditemukan"
+
+      - name: Get Latest Run ID (SUPER SAFE)
+        id: get_run
+        run: |
+          if [ ! -d "mlruns" ]; then
+            echo "Folder mlruns tidak ditemukan!"
+            exit 1
+          fi
+
+          # Ambil run ID dari eksperimen terbaru
+          RUN_ID=$(find mlruns -type d -path "*/artifacts" | head -n 1 | cut -d'/' -f3)
+
+          if [ -z "$RUN_ID" ]; then
+            echo "Run ID tidak ditemukan!"
+            exit 1
+          fi
+
           echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
-          echo "Latest Run ID found: $RUN_ID"
+          echo "Latest Run ID: $RUN_ID"
+
+      - name: Verify Model Exists (FIX PATH)
+        run: |
+          if [ ! -d "mlruns/0/$RUN_ID/artifacts/model" ]; then
+            echo "Model tidak ditemukan di artifacts/model!"
+            exit 1
+          fi
 
       - name: Build Docker Image
         run: |
-          # Membangun image Docker berdasarkan Run ID yang didapat
-          mlflow models build-docker -m "runs:/$RUN_ID/model" -n "cc"
+          mlflow models build-docker \
+            -m "runs:/$RUN_ID/model" \
+            -n "cc"
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
+      - name: Tag Docker Image
+        run: |
+          docker tag cc ${{ secrets.DOCKER_HUB_USERNAME }}/cc:latest
+          docker tag cc ${{ secrets.DOCKER_HUB_USERNAME }}/cc:${{ github.sha }}
+
       - name: Push to Docker Hub
         run: |
-          # Tagging dan Push ke Docker Hub menggunakan username dari Secrets
-          docker tag cc ${{ secrets.DOCKER_HUB_USERNAME }}/cc:latest
           docker push ${{ secrets.DOCKER_HUB_USERNAME }}/cc:latest
+          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/cc:${{ github.sha }}
