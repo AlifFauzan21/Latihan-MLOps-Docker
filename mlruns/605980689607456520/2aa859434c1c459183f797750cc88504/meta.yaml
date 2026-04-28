@@ -1,0 +1,15 @@
+artifact_uri: mlflow-artifacts:/605980689607456520/2aa859434c1c459183f797750cc88504/artifacts
+end_time: 1776080086470
+entry_point_name: ''
+experiment_id: '605980689607456520'
+lifecycle_stage: active
+run_id: 2aa859434c1c459183f797750cc88504
+run_name: 2_Update_Batch_2
+run_uuid: 2aa859434c1c459183f797750cc88504
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1776080080624
+status: 3
+tags: []
+user_id: fauza
