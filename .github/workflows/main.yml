@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      MLFLOW_TRACKING_URI: sqlite:///mlflow.db  # ✅ Fix: pakai sqlite, bukan file://
+      MLFLOW_TRACKING_URI: sqlite:///mlflow.db
 
     steps:
       - name: Checkout Code
@@ -31,58 +31,29 @@ jobs:
           set -e
           mlflow run . -e main --env-manager=local
 
-      - name: Debug mlruns
-        run: |
-          echo "=== DEBUG mlruns ==="
-          ls -R mlruns || echo "mlruns tidak ditemukan"
-          echo "=== DEBUG mlflow.db ==="
-          ls -la mlflow.db || echo "mlflow.db tidak ditemukan"
-
-      - name: Get Latest Run ID
-        id: get_run
+      - name: Get Run ID
         run: |
           set -e
-          # ✅ Fix: query langsung dari sqlite via python, lebih reliable
-          RUN_ID=$(python - <<'EOF'
-          import mlflow
-          import os
-          mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
-          client = mlflow.tracking.MlflowClient()
-          experiments = client.search_experiments()
-          for exp in experiments:
-              runs = client.search_runs(
-                  experiment_ids=[exp.experiment_id],
-                  order_by=["start_time DESC"],
-                  max_results=1
-              )
-              if runs:
-                  print(runs[0].info.run_id)
-                  break
-          EOF
-          )
-
+          RUN_ID=$(cat run_id.txt)
           if [ -z "$RUN_ID" ]; then
             echo "RUN_ID tidak ditemukan!"
             exit 1
           fi
-
           echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
-          echo "Run ID ditemukan: $RUN_ID"
+          echo "Run ID: $RUN_ID"
 
       - name: Verify Model Exists
         run: |
           set -e
-          # ✅ Fix: verifikasi via python, bukan hardcode path
-          python - <<EOF
-          import mlflow
-          import os
+          python - <<'EOF'
+          import mlflow, os
           mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
+          run_id = open("run_id.txt").read().strip()
           client = mlflow.tracking.MlflowClient()
-          run_id = os.environ["RUN_ID"]
-          artifacts = client.list_artifacts(run_id)
-          names = [a.path for a in artifacts]
-          print(f"Artifacts ditemukan: {names}")
-          assert len(artifacts) > 0, "Tidak ada artifact!"
+          arts = client.list_artifacts(run_id, "model_artifacts/online_model")
+          print(f"Artifacts ditemukan: {[a.path for a in arts]}")
+          assert len(arts) > 0, "Model tidak ditemukan!"
+          print("Verifikasi berhasil!")
           EOF
 
       - name: Build Docker Image
