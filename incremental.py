@@ -20,7 +20,7 @@ batches = [data_baru.iloc[i:i + batch_size] for i in range(0, len(data_baru), ba
 
 # 2. Sambungkan ke MLflow
 #mlflow.set_tracking_uri("http://127.0.0.1:5000/")
-mlflow.set_experiment("Online Training Iris")
+#mlflow.set_experiment("Online Training Iris")
 
 # 3. AMBIL "INGATAN" MODEL LAMA DARI MLFLOW
 print("Sedang mengambil model lama dari MLflow...")
@@ -45,11 +45,13 @@ except Exception as e:
 # 4. CEKOKIN DATA BARU (ONLINE LEARNING)
 print("\nMensimulasikan masuknya data baru...")
 for i, batch in enumerate(batches):
-    with mlflow.start_run(run_name=f"2_Update_Batch_{i+1}"):
+    # 🔥 TAMBAHKAN nested=True DI SINI 🔥
+    with mlflow.start_run(run_name=f"2_Update_Batch_{i+1}", nested=True):
         mlflow.autolog()
         
         X_batch = batch.drop(columns=['target'])
         y_batch = batch['target']
+        # ... (kode bawahnya biarkan sama persis seperti sebelumnya)
         
         # INI KUNCINYA: Belajar dari data baru
         if model_is_fresh and i == 0:
