@@ -70,7 +70,6 @@ for i, batch in enumerate(batches):
         print(f"Batch {i+1} dipelajari. Akurasi sekarang: {batch_acc:.4f}")
         
         dump(model, "online_model.joblib")
-        mlflow.log_artifact("online_model.joblib", artifact_path="model_artifacts")
         mlflow.sklearn.log_model(
             sk_model=model,
             artifact_path="online_model",
