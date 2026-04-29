@@ -24,15 +24,23 @@ mlflow.set_experiment("Online Training Iris")
 
 # 3. AMBIL "INGATAN" MODEL LAMA DARI MLFLOW
 print("Sedang mengambil model lama dari MLflow...")
-experiment = mlflow.get_experiment_by_name("Online Training Iris")
-runs = mlflow.search_runs(experiment_ids=[experiment.experiment_id], order_by=["start_time DESC"])
+import numpy as np
 
-# ✅ FIX DI SINI
-latest_run_id = runs.iloc[0]["run_id"]
+try:
+    experiment = mlflow.get_experiment_by_name("Online Training Iris")
+    runs = mlflow.search_runs(experiment_ids=[experiment.experiment_id], order_by=["start_time DESC"])
+    latest_run_id = runs.iloc["run_id"]
 
-artifact_uri = f"runs:/{latest_run_id}/model_artifacts/online_model.joblib"
-local_path = mlflow.artifacts.download_artifacts(artifact_uri)
-model = load(local_path)
+    artifact_uri = f"runs:/{latest_run_id}/model_artifacts/online_model.joblib"
+    local_path = mlflow.artifacts.download_artifacts(artifact_uri)
+    model = load(local_path)
+    model_is_fresh = False
+    print("Berhasil memuat model lama!")
+except Exception as e:
+    print(f"Model lama tidak ditemukan di environment ini. Membuat model baru...")
+    from sklearn.linear_model import SGDClassifier
+    model = SGDClassifier(loss='log_loss', random_state=42)
+    model_is_fresh = True  # Penanda bahwa ini model baru yang butuh inisialisasi kelas
 
 # 4. CEKOKIN DATA BARU (ONLINE LEARNING)
 print("\nMensimulasikan masuknya data baru...")
@@ -43,8 +51,12 @@ for i, batch in enumerate(batches):
         X_batch = batch.drop(columns=['target'])
         y_batch = batch['target']
         
-        # INI KUNCINYA: Belajar dari data baru tanpa reset
-        model.partial_fit(X_batch, y_batch)
+        # INI KUNCINYA: Belajar dari data baru
+        if model_is_fresh and i == 0:
+            # Kalau model baru pertama kali belajar, dia butuh tahu semua kemungkinan jawabannya (0, 1, 2)
+            model.partial_fit(X_batch, y_batch, classes=np.array())
+        else:
+            model.partial_fit(X_batch, y_batch)
         
         # Cek Akurasi Terbaru
         batch_acc = model.score(X_batch, y_batch)
