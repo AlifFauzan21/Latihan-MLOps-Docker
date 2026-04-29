@@ -19,7 +19,7 @@ batch_size = 30
 batches = [data_baru.iloc[i:i + batch_size] for i in range(0, len(data_baru), batch_size)]
 
 # 2. Sambungkan ke MLflow
-mlflow.set_tracking_uri("http://127.0.0.1:5000/")
+#mlflow.set_tracking_uri("http://127.0.0.1:5000/")
 mlflow.set_experiment("Online Training Iris")
 
 # 3. AMBIL "INGATAN" MODEL LAMA DARI MLFLOW
